@@ -1,0 +1,77 @@
+version: '3'
+services:
+  mariadb:
+    image: mariadb:mine
+    build: 
+      context: ./requirements/mariadb/ #go to this directory, look for and run Dockerfile.
+      dockerfile: Dockerfile
+    container_name: mariadb # set name to container. Otherwise it will take random name.
+    networks:
+      - docker_inside_network
+    volumes: # named volume: link container's volume to host machine's volume.
+      - "db_data:/var/lib/mysql"
+    env_file: # use .env file for environment vairables.
+      - ".env"
+    expose: # Exposing the port to linked services, not to the host machine.
+      - "3306"
+    restart: always
+
+  wordpress:
+    image: wordpress:mine
+    build: 
+      context: ./requirements/wordpress/
+      dockerfile: Dockerfile
+    container_name: wordpress
+    depends_on: # make sure mariadb is available before starting wordpress
+      - mariadb
+    networks:
+      - docker_inside_network
+    expose:
+      - "9000"
+    env_file:
+      - ".env"
+    links: # define only names under which the container can be reached (in a same docker network).
+      - mariadb
+    volumes:
+      - "wp:/var/www/html/wordpress"
+    restart: always
+
+  nginx:
+    image: nginx:mine
+    build:
+      context: ./requirements/nginx/ 
+      dockerfile: Dockerfile
+    container_name: nginx
+    depends_on: # make sure wordpress is available before starting nginx
+      - wordpress
+    networks:
+      - docker_inside_network
+    ports: # define which port we want to expose and the host port it should be exposed to.
+      - "443:443" # host:container
+    expose:
+      - "443"
+    volumes: 
+      - "wp:/var/www/html/wordpress"
+    links:
+      - wordpress
+    restart: always
+
+networks:
+  docker_inside_network:
+    driver: bridge
+
+volumes:
+  wp:
+    name: wp_volume
+    driver: local
+    driver_opts:
+      type: none
+      device: /home/thi-nguy/data/wp
+      o: bind
+  db_data:
+    name: db_data_volume
+    driver: local
+    driver_opts:
+      type: 'none'
+      device: /home/thi-nguy/data/mysql
+      o: 'bind'
